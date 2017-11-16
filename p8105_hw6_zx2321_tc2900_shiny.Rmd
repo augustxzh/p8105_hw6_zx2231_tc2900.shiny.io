@@ -1,0 +1,107 @@
+---
+title: "p8105_hw6_zx2231_tc2900"
+output: 
+  flexdashboard::flex_dashboard:
+    vertical_layout: scroll
+  runtime: shiny
+---
+
+```{r setup, include=FALSE}
+library(flexdashboard)
+library(tidyverse)
+library(janitor)
+library(stringr)
+library(forcats)
+library(viridis)
+library(plotly)
+library(shiny)
+```
+
+Column {.sidebar}
+----------------------------------------------------------------------
+```{r}
+noaa = read_csv("nynoaadat_2000_2010.csv")
+
+# sliderInput widget
+year_range = noaa %>% distinct(year) %>% pull() %>% sort() %>% range()
+
+sliderInput("year_range", label = h3("Choose year range"), min = min(year_range), max = max(year_range), value = c(2000, 2010), step = 1)
+
+#checkboxInput widget
+station_id = noaa %>%
+  select(id, tmax, tmin) %>%
+  na.omit %>%
+  distinct(id) %>%
+  pull()
+
+checkboxGroupInput("id", label = h3("Select station id"), 
+    choices = station_id,
+    selected = station_id[1])
+
+```
+
+Row
+---------------------------------------------------------------------
+
+### Daily temperature range observed at each station
+    
+```{r}
+renderPlotly({ 
+noaa %>%
+  filter(id == input$id, year %in% input$year_range[1]:input$year_range[2]) %>%
+  mutate(tmax = as.numeric(tmax),
+         tmin = as.numeric(tmin)) %>% 
+  mutate(t_range = tmax - tmin) %>% 
+  select(id, t_range) %>%
+  na.omit %>%
+  group_by(id) %>%
+  summarise(t_range_max = max(t_range)) %>% 
+  plot_ly(x = ~id, y = ~t_range_max / 10, color = ~id, colors = "Set1",
+       type = "bar" ) %>%
+    layout(xaxis = list(title = "station id"), yaxis = list(title = "maximum daily temperature range (Celcius degree)"))
+})
+```
+    
+    
+
+-------------------------------------------------------------------------
+### Daily snowfall in each year
+
+```{r}
+renderPlotly({ 
+noaa %>% 
+  filter(snow < 200 & snow > 0) %>% 
+  filter(id == input$id, year %in% input$year_range[1]:input$year_range[2]) %>%
+  plot_ly(x = ~as.character(year), y = ~snow, color = ~as.character(year),
+          colors = "Set1",                                       
+          type = "box") %>%
+      layout(xaxis = list(title = "year"), yaxis = list(title = "daily snowfall (mm)"))
+
+})
+```
+
+
+
+-----------------------------------------------------------------------------
+### Association between snowfall and snowdepth
+
+```{r}
+renderPlotly({ 
+noaa %>% 
+    #filter(year %in% input$year_range[1]:input$year_range[2]) %>%
+  filter(id == input$id, year %in% input$year_range[1]:input$year_range[2]) %>%
+   filter(snwd < 2000 & snwd > 0) %>%  
+   filter(snow < 3000 & snow > 0) %>% 
+   mutate(hover_text = str_c("Precipitation(tenths of mm):", prcp)) %>%  
+  plot_ly(x = ~snow, y = ~snwd, color = ~as.character(year),
+          text = ~hover_text,
+          colors = "Set1",                                       
+          type = "scatter",  alpha = 0.5) %>%
+      layout(xaxis = list(title = "daily snowfall (mm)"), yaxis = list(title = "daily snowdepth (mm)"))
+
+})
+```
+
+
+
+
